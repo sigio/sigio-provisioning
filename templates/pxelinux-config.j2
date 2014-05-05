@@ -1,0 +1,30 @@
+# Default boot option to use
+DEFAULT menu.c32
+# Prompt user for selection
+PROMPT 0
+# Menu Configuration
+MENU WIDTH 80
+MENU MARGIN 10
+MENU PASSWORDMARGIN 3
+MENU ROWS 12
+MENU TABMSGROW 18
+MENU CMDLINEROW 18
+MENU ENDROW 24
+MENU PASSWORDROW 11
+MENU TIMEOUTROW 5
+MENU TITLE Main Menu
+# Menus
+# x86
+LABEL {{ deploy_menuname }}
+  MENU DEFAULT
+  TIMEOUT 50
+  KERNEL {{ deploy_kernel }}
+  APPEND initrd={{ deploy_initrd }} {{ deploy_append }}
+LABEL Local Harddisk boot
+  LOCALBOOT 0
+LABEL Debian Wheezy (64-bit)
+  KERNEL debian-amd64-wheezy/linux
+  APPEND initrd=debian-amd64-wheezy/initrd.gz auto=true priority=critical url=http://192.168.123.1/preseed.cfg interface=eth0
+LABEL Centos 6 (64-bit)
+  KERNEL centos-amd64-6/vmlinuz
+  APPEND initrd=centos-amd64-6/initrd.img ks=http://192.168.123.1/centos6.ks

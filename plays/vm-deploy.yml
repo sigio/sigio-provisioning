@@ -1,0 +1,67 @@
+---
+
+- name: Deploy virtual machine
+  hosts: deploy
+  user: root
+  gather_facts: no
+
+  tasks:
+  - name: Create disk image
+    action: qemu_img dest={{qemu_img_path}}/{{inventory_hostname}}.qcow2 size={{qemu_img_size}} format=qcow2
+    delegate_to: "{{hypervisor}}"
+
+  - name: Create template directory
+    action: file dest=/etc/libvirt/vm_templates/ state=directory
+    delegate_to: "{{hypervisor}}"
+
+  - name: Template VM
+    action: template src=templates/{{qemu_template}} dest=/etc/libvirt/vm_templates/{{inventory_hostname}}.xml
+    delegate_to: "{{hypervisor}}"
+
+  - name: Create VM from template
+    action: virt_guest guest={{inventory_hostname}} src=/etc/libvirt/vm_templates/{{inventory_hostname}}.xml
+    delegate_to: "{{hypervisor}}"
+    register: guest
+
+  - name: Create dhcp entry
+    template: src=templates/dhcp-entry.j2 dest=/etc/dnsmasq.d/host-{{inventory_hostname}}.conf
+    delegate_to: "{{hypervisor}}"
+
+  - name: Find pxelinux configfile name
+    command: /usr/bin/gethostip -x {{prov_ip}}
+    register: pxelinux_config
+    delegate_to: "{{hypervisor}}"
+
+  - name: Template pxelinux configuration
+    template: src=templates/pxelinux-config.j2 dest=/srv/tftp/pxelinux.cfg/{{pxelinux_config.stdout}} owner=root group=root mode=0644
+    delegate_to: "{{hypervisor}}"
+
+  - name: Template preseed configuration
+    template: src=templates/debian-preseed.cfg.j2 dest={{www_dir}}/{{inventory_hostname}}.cfg mode=0644 owner=root group=root
+    when: os == "debian"
+    delegate_to: "{{hypervisor}}"
+
+  - name: Template kickstart configuration
+    template: src=templates/centos-kickstart.cfg.j2 dest={{www_dir}}/{{inventory_hostname}}.ks mode=0644 owner=root group=root
+    when: os == "centos"
+    delegate_to: "{{hypervisor}}"
+
+  - local_action: group_by key={{guest.provisioning_status}}
+
+- name: Do minimal installation on unprovisioned hosts
+  hosts: unprovisioned
+  gather_facts: no
+  user: root
+
+  tasks:
+  - name: restart dnsmasq
+    service: name=dnsmasq state=restarted enabled=yes
+    delegate_to: "{{hypervisor}}"
+
+  - name: Wait a few seconds for libvirt to settle
+    pause: seconds=5
+    delegate_to: "{{hypervisor}}"
+
+  - name: Boot virtual machine
+    virt: name={{inventory_hostname}} command=start
+    delegate_to: "{{hypervisor}}"

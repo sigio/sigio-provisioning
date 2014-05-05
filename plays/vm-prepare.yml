@@ -1,0 +1,128 @@
+---
+
+- name: Deploy virtual machine
+  hosts: deploy
+  user: root
+  gather_facts: no
+
+  tasks:
+  - name: Stop 'default' libvirt network
+    command: removes=/etc/libvirt/qemu/networks/default.xml /usr/bin/virsh net-destroy default
+    ignore_errors: true
+    delegate_to: "{{hypervisor}}"
+
+  - name: Delete 'default' libvirt network
+    command: removes=/etc/libvirt/qemu/networks/default.xml /usr/bin/virsh net-undefine default
+    ignore_errors: true
+    delegate_to: "{{hypervisor}}"
+
+  - name: Copy provisioning network definition
+    copy: src=files/libvirt-network-provisioning.xml dest=/etc/libvirt/qemu/networks/provisioning.xml.input
+    notify: make_provisioning_network
+    delegate_to: "{{hypervisor}}"
+
+  - name: Install packages (debian)
+    apt: pkg={{item}} state=installed
+    delegate_to: "{{hypervisor}}"
+    when: hypervisor_os == "debian"
+    with_items:
+      - iptables-persistent
+      - dnsmasq
+      - python-libvirt
+      - syslinux
+      - lighttpd
+
+  - name: Install packages (centos)
+    yum: pkg={{item}} state=installed
+    delegate_to: "{{hypervisor}}"
+    when: hypervisor_os == "centos"
+    with_items:
+      - dnsmasq
+      - python-libvirt
+      - syslinux
+      - lighttpd
+
+  - name: Copy iptables rules
+    copy: src=files/libvirt-iptables.sh dest=/tmp/libvirt-iptables.sh mode=0755
+    notify: add_iptables
+    delegate_to: "{{hypervisor}}"
+
+  - name: Configure dnsmasq to use dnsmasq.d directory
+    lineinfile: dest=/etc/dnsmasq.conf line="conf-dir=/etc/dnsmasq.d" regexp="^conf-dir=/etc/dnsmasq\.d" state=present
+    delegate_to: "{{hypervisor}}"
+
+  - name: Configure dnsmasq for dns/dhcp/tftp/bootp
+    copy: src=files/dnsmasq-provisioning.conf dest=/etc/dnsmasq.d/provisioning.conf mode=0644
+    delegate_to: "{{hypervisor}}"
+    notify: restart_dnsmasq
+
+  - name: Create syslinux directories
+    file: path={{item}} state=directory owner=root group=root mode=0755
+    with_items:
+      - /srv/tftp/pxelinux.cfg/
+      - /srv/tftp/debian-amd64-wheezy
+      - /srv/tftp/centos-amd64-6
+    delegate_to: "{{hypervisor}}"
+
+  - name: Copy pxelinux files
+    copy: src=files/pxelinux/{{item}} dest=/srv/tftp/{{item}} owner=root group=root mode=0755
+    with_items:
+      - pxelinux.0
+      - menu.c32
+    delegate_to: "{{hypervisor}}"
+
+  - name: Copy debian installer files
+    copy: src=files/debian-amd64-wheezy/{{item}} dest=/srv/tftp/debian-amd64-wheezy/{{item}} owner=root group=root mode=0755
+    delegate_to: "{{hypervisor}}"
+    with_items:
+      - initrd.gz
+      - linux
+
+  - name: Copy centos installer files
+    copy: src=files/centos-amd64-6/{{item}} dest=/srv/tftp/centos-amd64-6/{{item}} owner=root group=root mode=0755
+    delegate_to: "{{hypervisor}}"
+    with_items:
+      - vmlinuz
+      - initrd.img
+
+  - name: Copy pxelinux.cfg default config
+    copy: src=files/pxelinux.cfg-default dest=/srv/tftp/pxelinux.cfg/default owner=root group=root mode=0755
+    delegate_to: "{{hypervisor}}"
+
+  handlers:
+  - name: make_provisioning_network
+    delegate_to: "{{hypervisor}}"
+    command: creates=/etc/libvirt/qemu/network/provisioning.xml virsh net-define /etc/libvirt/qemu/networks/provisioning.xml.input
+    notify: autostart_provisioning_network
+    notify: start_provisioning_network
+
+  - name: autostart_provisioning_network
+    file: src=/etc/libvirt/qemu/networks/provisioning.xml dest=/etc/libvirt/qemu/networks/autostart/provisioning.xml state=link owner=root group=root
+    delegate_to: "{{hypervisor}}"
+
+  - name: start_provisioning_network
+    delegate_to: "{{hypervisor}}"
+    command: virsh net-start provisioning
+
+# FIXME: Make persistent
+  - name: Configure vmnet1 network
+    command: ifconfig vmnet1 192.168.123.1/24
+    delegate_to: "{{hypervisor}}"
+
+  - name: enable_lighttpd_accesslog
+    delegate_to: "{{hypervisor}}"
+    command: creates=/etc/lighttpd/conf-enabled/10-accesslog.conf /usr/sbin/lighty-enable-mod accesslog
+    notify: reload_lighttpd
+
+  - name: reload_lighttpd
+    delegate_to: "{{hypervisor}}"
+    service: name=lighttpd state=reloaded enabled=yes
+
+  - name: restart_dnsmasq
+    delegate_to: "{{hypervisor}}"
+    service: name=dnsmasq state=restarted enabled=yes
+
+  - name: add_iptables
+    delegate_to: "{{hypervisor}}"
+    command: /tmp/libvirt-iptables.sh
+

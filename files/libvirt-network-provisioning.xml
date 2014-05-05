@@ -1,0 +1,5 @@
+<network>
+  <name>provisioning</name>
+  <bridge name='virbr1' stp='on' delay='0' />
+</network>
+

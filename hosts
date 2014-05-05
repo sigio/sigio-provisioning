@@ -1,0 +1,48 @@
+[kvm]
+b1.sig-io.nl ansible_ssh_host=10.0.19.96
+
+[deploy_debian]
+vmtest1 mac=52:54:00:63:c9:85 prov_ip=192.168.123.11
+vmtest2 mac=52:54:00:41:31:a4 prov_ip=192.168.123.12
+vmtest3 mac=52:54:00:41:31:a5 prov_ip=192.168.123.13
+vmtest7 mac=52:54:00:45:12:32 prov_ip=192.168.123.17
+
+[deploy_centos]
+vmtest4 mac=52:54:00:63:c9:a6 prov_ip=192.168.123.21
+vmtest5 mac=52:54:00:41:31:a7 prov_ip=192.168.123.22
+vmtest6 mac=52:54:00:41:31:a8 prov_ip=192.168.123.23
+
+[deploy:children]
+deploy_debian
+deploy_centos
+
+[deploy:vars]
+hypervisor=b1.sig-io.nl
+hypervisor_os=debian
+machinetype=pc-1.1
+www_dir=/var/www
+emulator=/usr/bin/kvm
+qemu_template=vm_template.xml.j2
+qemu_img_path=/var/lib/libvirt/images
+qemu_img_size=4096
+qemu_bridge=br0
+ram_size=1024
+
+[deploy_debian:vars]
+os=debian
+mirror=cdn.debian.net
+deploy_menuname="^Debian Wheezy (64-bit)"
+deploy_kernel="debian-amd64-wheezy/linux"
+deploy_initrd="debian-amd64-wheezy/initrd.gz"
+deploy_append="auto=true priority=critical url=http://192.168.123.1/{{inventory_hostname}}.cfg interface=eth0"
+
+[deploy_centos:vars]
+os=centos
+arch=x86_64
+mirror=http://mirror.space.revspace.nl/CentOS/6.4/
+deploy_menuname="^CentOS 6 {{ arch }}"
+deploy_kernel="centos-amd64-6/vmlinuz"
+deploy_initrd="centos-amd64-6/initrd.img"
+deploy_append="ks=http://192.168.123.1/{{inventory_hostname}}.ks"
+
+
