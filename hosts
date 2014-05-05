@@ -27,6 +27,10 @@ qemu_img_path=/var/lib/libvirt/images
 qemu_img_size=4096
 qemu_bridge=br0
 ram_size=1024
+rootpasscrypted=$6$some-encrypted-root-password
+loginuser=sigio
+logingecos="Sig-I/O"
+loginpasscrypted=$6$some-encrypted-user-password
 
 [deploy_debian:vars]
 os=debian

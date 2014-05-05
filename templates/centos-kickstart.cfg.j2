@@ -8,7 +8,7 @@ url --url={{ mirror }}/os/{{ arch }}/
 lang en_US.UTF-8
 keyboard us
 network --device=eth0 --bootproto=dhcp
-rootpw  --iscrypted $6$bgaxaK4UJ.s/mnPI$REZqH8N2.bc6m7OkcQb1PW76HPfBnBVSl/VEt7Cmkcp2ApMFi4cV2CmtispP5EEqXabtS3r9kMHB38Fb7OCe40
+rootpw  --iscrypted {{ rootpasscrypted }}
 authconfig --enableshadow --passalgo=sha512
 firewall --disabled
 selinux --disabled
@@ -33,7 +33,7 @@ openssh-clients
 # PostInstall stuff
 %post --log=/root/anaconda-postinstall.log
 cd /root
-echo curl -O http://grtzpsd3/post/postks.sh
+echo curl -O http://{{hypervisor}}/post/postks.sh
 echo sh postks.sh
 %end
 %pre
